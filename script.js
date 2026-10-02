@@ -11,6 +11,7 @@
   const WARNING_AT = 600;
   const SHUTDOWN_AT = 900;
   const VALIDATION_MS = 350;
+  const QUICK_OFF_SECONDS = 15; // real seconds from "Remove presence" to lights/fans OFF, independent of sim speed
   const EVENT_LIMIT = 20;
   const pad = value => String(Math.floor(value)).padStart(2, '0');
   const zoneName = index => `Zone ${pad(index + 1)}`;
@@ -19,7 +20,7 @@
     id: index + 1, rawPresence: presence, occupied: presence, manual: false,
     pending: null, state: presence ? 'ACTIVE' : 'IDLE', powered: true,
     idleSeconds: 0, offSeconds: 0, shutdownSeconds: 0, savedWh: 0,
-    fanSpeed: 128, fanAngle: index * 39, sensorPulseUntil: 0
+    fanSpeed: 128, fanAngle: index * 39, sensorPulseUntil: 0, quickOff: null
   }));
 
   // The single source of truth. Only this object is changed by interaction/timing.
@@ -68,7 +69,7 @@
     { id: 'switch', name: 'Push buttons / switches', role: 'SIMULATED INPUT + OVERRIDE', category: 'control', quantity: '×6', signal: 'DEBOUNCED LOGICAL INPUT', purpose: 'Three simulated presence inputs and three manual power holds.', input: 'User actuation', output: 'Latched presence or manual override in the demonstration', power: 'Controller-compatible input circuits; verify wiring and biasing.', connections: 'Presence → GPIO 4 / 5 / 6 · override → GPIO 11 / 12 / 13', detail: 'The upper three buttons simulate radar zone inputs. The lower three latch a manual override, keeping power on without falsely increasing the occupied-zone count.', note: 'The demo uses latched buttons for clarity. A physical momentary switch requires appropriate biasing, debounce, and explicitly defined polarity.' },
     { id: 'breadboard', name: 'Solderless breadboard', role: 'PROTOTYPE ASSEMBLY', category: 'control', quantity: '×1', signal: 'POWER / DATA / GPIO', purpose: 'Organizes low-voltage prototype connections.', input: 'Regulated power and controller connections', output: 'Terminal-strip and rail interconnections', power: 'Low-voltage prototype only. Verify rail continuity and ratings.', connections: 'Power rails, center groove, terminal strips, jumper wires', detail: 'The illustration shows separate rails, the center channel, connected indicators, switching components, and animated wiring. It is a spatial illustration, not a verified terminal-by-terminal layout.', note: 'Do not route mains lighting or unverified high-current motor loads through a solderless breadboard.' },
     { id: 'wires', name: 'Jumper wires', role: 'THE CONNECTION LAYER', category: 'control', quantity: 'SET', signal: 'POWER / DATA / GPIO / GND', purpose: 'Carries power, sensor signals, and control between components.', input: 'A component terminal or controller pin', output: 'Its assigned destination', power: 'Wire gauge and connection ratings must suit the circuit.', connections: 'Select a colored wire in the complete circuit to inspect endpoints.', detail: 'Amber denotes power, cyan data, green GPIO, gray ground, and copper sensor signals. Live pulses show logical activity, not measured voltage or current.', note: 'Keep signal-voltage compatibility and a common ground in mind. Wire animation is a demonstration, not an electrical measurement.' },
-    { id: 'battery', name: '9 V battery representations', role: 'PHYSICAL PROTOTYPE PLANNING', category: 'power', quantity: '×2', signal: 'PLANNING ONLY / NOT CONNECTED', purpose: 'Makes the planned power-source form factor visible.', input: 'Not connected directly to any load in this plan', output: 'Appropriate regulation would be required', power: '9 V representation only. Controller and motor rails differ.', connections: 'A suitable regulated supply is required; no direct 9 V load path.', detail: 'For physical prototype planning only; use an appropriate regulated supply for the actual loads and controller.', note: 'Never infer that a 9 V battery should directly power the 5 V motors or the ESP32. Verify voltage regulation, available current, and all supply limits.' }
+    { id: 'battery', name: 'Power supply representations', role: 'PHYSICAL PROTOTYPE PLANNING', category: 'power', quantity: '×2', signal: 'PLANNING ONLY / NOT CONNECTED', purpose: 'Makes the planned power source visible in the prototype layout.', input: 'Not connected directly to any load in this plan', output: 'Appropriate regulation would be required', power: 'Representation only. Controller and motor rails differ.', connections: 'A suitable regulated supply is required; no direct supply-to-load path.', detail: 'For physical prototype planning only; use an appropriately regulated supply for the actual loads and controller.', note: 'Never connect the power supply directly to the 5 V motors or the ESP32. Verify voltage regulation, available current, and all supply limits.' }
   ];
 
   const wires = pins.map(pin => ({
@@ -81,7 +82,7 @@
   }));
   wires.push(
     { id: 'logic-power', from: 'Appropriate regulated logic supply', to: 'ESP32-S3 · approved power input', type: 'power', signal: 'Regulated controller power', kind: 'supply', purpose: 'Use a supply compatible with the exact development board. 3.3 V is the logic level, not a universal instruction for every board power input.' },
-    { id: 'motor-power', from: 'Regulated 5 V motor supply', to: 'Motor 01 / 02 / 03 positive terminals', type: 'power', signal: '5 V motor rail', kind: 'supply', purpose: 'Supplies the motors independently of GPIO. Verify running/stall current and supply capacity. Never substitute a direct 9 V battery connection.' },
+    { id: 'motor-power', from: 'Regulated 5 V motor supply', to: 'Motor 01 / 02 / 03 positive terminals', type: 'power', signal: '5 V motor rail', kind: 'supply', purpose: 'Supplies the motors independently of GPIO. Verify running/stall current and supply capacity. Never substitute a direct, unregulated supply connection.' },
     { id: 'ground', from: 'Controller / sensor / supply GND', to: 'MOSFET sources + gate pull-downs', type: 'ground', signal: 'Common low-voltage reference', kind: 'ground', purpose: 'Connects the low-voltage reference across compatible circuit sections. Not a protective-earth or mains-wiring diagram.' },
     ...[0, 1, 2].map(zone => ({ id: `flyback${zone + 1}`, from: `Motor− / MOSFET drain ${pad(zone + 1)}`, to: 'Motor +5 V rail · diode cathode', type: 'power', signal: 'Turn-off transient return path', kind: 'flyback', zone, purpose: 'The 1N4007 is reverse-biased during normal motor power. Its cathode stripe faces the positive motor supply; its anode faces the motor negative/drain node.' })),
     { id: 'assembly', from: 'ESP32-S3 low-voltage headers', to: 'Breadboard + jumper-wire assembly', type: 'data', signal: 'Illustrative assembly bundle', kind: 'data', purpose: 'A spatial representation of low-voltage assembly. The pin-by-pin connection map, not this bundled line, describes logical assignments.' }
@@ -132,7 +133,7 @@
       <symbol id="part-oled" viewBox="0 0 200 150"><rect x="7" y="5" width="186" height="140" rx="5" fill="#263a36" stroke="#75918a"/><path d="M13 13h34v16M186 113h-26v22" fill="none" stroke="#729282" opacity=".5"/><circle cx="16" cy="13" r="3.5" fill="#202823" stroke="#b2b398"/><circle cx="184" cy="13" r="3.5" fill="#202823" stroke="#b2b398"/><circle cx="16" cy="137" r="3.5" fill="#202823" stroke="#b2b398"/><circle cx="184" cy="137" r="3.5" fill="#202823" stroke="#b2b398"/><rect x="58" y="5" width="84" height="10" rx="2" fill="#17241e"/><g fill="#bdba94"><rect x="65" y="6" width="5" height="7"/><rect x="87" y="6" width="5" height="7"/><rect x="109" y="6" width="5" height="7"/><rect x="131" y="6" width="5" height="7"/></g><g font-size="5" fill="#b5c1ab" text-anchor="middle"><text x="67" y="24">GND</text><text x="89" y="24">VCC</text><text x="111" y="24">SCL</text><text x="133" y="24">SDA</text></g><rect x="22" y="30" width="156" height="97" rx="3" fill="#151d18" stroke="#637061"/><rect x="28" y="35" width="144" height="86" rx="1" fill="#020505"/><path d="M24 126h152" stroke="#828873" opacity=".5"/><text x="100" y="140" font-size="5" fill="#9baf9b" text-anchor="middle">0.9-INCH OLED · I2C</text></symbol>
       <symbol id="part-buzzer" viewBox="0 0 200 155"><path d="M82 118v30m36-30v30" stroke="#aeb19c" stroke-width="4"/><path d="M55 59v45q0 31 45 31t45-31V59Z" fill="#272d25" stroke="#535e4c"/><ellipse cx="100" cy="60" rx="45" ry="29" fill="#424b3b" stroke="#78806a"/><ellipse cx="100" cy="60" rx="38" ry="23" fill="#323c2f" stroke="#4c5844"/><ellipse cx="100" cy="61" rx="10" ry="7" fill="#111d12" stroke="#59684e"/><text x="122" y="47" font-size="13" fill="#a3af94">+</text><text x="100" y="111" font-size="8" fill="#838f78" text-anchor="middle">BUZZER</text><text x="81" y="153" class="part-pin-label">+</text><text x="119" y="153" class="part-pin-label">−</text></symbol>
       <symbol id="part-switch" viewBox="0 0 170 120"><path d="M48 48H34m14 23H34m88-23h14m-14 23h14" stroke="#a5a793" stroke-width="5"/><rect x="47" y="35" width="78" height="57" rx="3" fill="#252e24" stroke="#56644e"/><rect x="53" y="33" width="66" height="51" rx="3" fill="url(#metal)"/><circle cx="86" cy="59" r="23" fill="#5f6554"/><circle cx="86" cy="57" r="19" class="button-cap" stroke="#ddb993"/><path d="M61 38h8m35 0h9M60 80h8m37 0h8" stroke="#666e5b" stroke-width="2"/><text x="49" y="111" class="part-pin-label">IN</text><text x="123" y="111" class="part-pin-label">GND</text></symbol>
-      <symbol id="part-battery" viewBox="0 0 170 210"><path d="m40 53 23-15h89l-23 15v123l-23 15H40Z" fill="#282a22" stroke="#81765b"/><path d="m129 53 23-15v123l-23 15Z" fill="#22271f"/><path d="m40 53 23-15h89l-23 15Z" fill="#a5875c"/><rect x="40" y="52" width="89" height="137" rx="3" fill="url(#battery-body)" stroke="#796c51"/><rect x="40" y="53" width="89" height="46" fill="url(#battery-copper)"/><path d="M46 101h77" stroke="#b39059" stroke-width="1"/><ellipse cx="72" cy="36" rx="10" ry="5" fill="#b8bcab" stroke="#788272"/><path d="M62 29v7q10 7 20 0v-7" fill="url(#metal)"/><ellipse cx="72" cy="29" rx="10" ry="4" fill="#d5d4bf"/><path d="m106 30 6-5 7 4 2 8-7 4-8-5Z" fill="url(#metal)" stroke="#a0a58e"/><text x="85" y="78" font-size="9" fill="#4e3c27" text-anchor="middle" letter-spacing="1">ECOSWITCH</text><text x="85" y="135" font-size="30" fill="#d4c5a2" text-anchor="middle">9V</text><text x="85" y="155" font-size="6" fill="#aaa689" text-anchor="middle">PLANNING ONLY</text><text x="85" y="176" font-size="5" fill="#899480" text-anchor="middle">REGULATION REQUIRED</text><text x="72" y="20" class="part-pin-label">−</text><text x="114" y="19" class="part-pin-label">+</text></symbol>
+      <symbol id="part-battery" viewBox="0 0 170 210"><path d="m40 53 23-15h89l-23 15v123l-23 15H40Z" fill="#282a22" stroke="#81765b"/><path d="m129 53 23-15v123l-23 15Z" fill="#22271f"/><path d="m40 53 23-15h89l-23 15Z" fill="#a5875c"/><rect x="40" y="52" width="89" height="137" rx="3" fill="url(#battery-body)" stroke="#796c51"/><rect x="40" y="53" width="89" height="46" fill="url(#battery-copper)"/><path d="M46 101h77" stroke="#b39059" stroke-width="1"/><ellipse cx="72" cy="36" rx="10" ry="5" fill="#b8bcab" stroke="#788272"/><path d="M62 29v7q10 7 20 0v-7" fill="url(#metal)"/><ellipse cx="72" cy="29" rx="10" ry="4" fill="#d5d4bf"/><path d="m106 30 6-5 7 4 2 8-7 4-8-5Z" fill="url(#metal)" stroke="#a0a58e"/><text x="85" y="78" font-size="9" fill="#4e3c27" text-anchor="middle" letter-spacing="1">ECOSWITCH</text><text x="85" y="135" font-size="28" fill="#d4c5a2" text-anchor="middle">PSU</text><text x="85" y="155" font-size="6" fill="#aaa689" text-anchor="middle">PLANNING ONLY</text><text x="85" y="176" font-size="5" fill="#899480" text-anchor="middle">REGULATION REQUIRED</text><text x="72" y="20" class="part-pin-label">−</text><text x="114" y="19" class="part-pin-label">+</text></symbol>
       <symbol id="part-breadboard" viewBox="0 0 380 210"><rect x="12" y="21" width="350" height="181" rx="8" fill="#7f7c6b"/><rect x="12" y="15" width="350" height="180" rx="8" fill="#d5ceba" stroke="#eee4c9"/><path d="M20 22h335" stroke="#efe9d7"/><rect x="31" y="48" width="312" height="47" fill="url(#bb-holes)"/><rect x="31" y="117" width="312" height="47" fill="url(#bb-holes)"/><rect x="28" y="100" width="320" height="8" rx="3" fill="#a09d8a"/><path d="M32 104h313" stroke="#797b66"/><path d="M30 28h310M30 174h310" stroke="#b47559" stroke-width="1"/><path d="M30 39h310M30 185h310" stroke="#7b9892" stroke-width="1"/><g font-size="5.5" fill="#88856e"><text x="22" y="32">+</text><text x="22" y="41">−</text><text x="22" y="179">+</text><text x="22" y="189">−</text><text x="20" y="57">A</text><text x="20" y="68">B</text><text x="20" y="79">C</text><text x="20" y="90">D</text><text x="20" y="124">F</text><text x="20" y="136">G</text><text x="20" y="147">H</text><text x="20" y="158">I</text><text x="72" y="46">5</text><text x="127" y="46">10</text><text x="182" y="46">15</text><text x="237" y="46">20</text><text x="292" y="46">25</text></g><path d="M52 32v34q0 9 9 9h34M52 180v-40q0-10 10-10h206M137 67v-15q0-9 9-9h62v85" fill="none" stroke="#a5674c" stroke-width="3"/><path d="M52 32v34q0 9 9 9h34" fill="none" stroke="#e0ab70" stroke-width="1" class="breadboard-flow"/><path d="M52 180v-40q0-10 10-10h206" fill="none" stroke="#667f76" stroke-width="3"/><path d="M93 140v-38q0-9 9-9h135" fill="none" stroke="#839568" stroke-width="3"/><path d="M93 140v-38q0-9 9-9h135" fill="none" stroke="#c0d890" stroke-width="1" class="breadboard-flow"/><use href="#part-led" x="74" y="52" width="47" height="36"/><use href="#part-led" x="120" y="52" width="47" height="36"/><use href="#part-led" x="164" y="52" width="47" height="36"/><use href="#part-resistor220" x="93" y="120" width="60" height="30"/><use href="#part-mosfet" x="236" y="73" width="60" height="47"/><use href="#part-diode" x="221" y="124" width="77" height="39"/><use href="#part-esp32" x="298" y="60" width="37" height="59"/></symbol>
     </defs></svg>`);
   }
@@ -208,7 +209,7 @@
       if (id === 'pir') extras = `<ellipse class="room-pir-pulse" cx="${x + width / 2}" cy="${y + 33}" rx="49" ry="40"/>`;
       if (id === 'motor') extras = `<g transform="translate(${x + width * .78} ${y + height * .51})"><g data-fan-rotor data-fan="${i}"><circle r="6" fill="none" stroke="#617563" stroke-width="1"/><path d="M0-6V6M-6 0H6" stroke="#b2b69a" stroke-width="1"/></g></g>`;
       const attributes = id === 'pir' ? `data-hw-pir="${i}"` : index !== null ? `data-hw-zone="${i}"` : '';
-      const label = id === 'battery' ? `BATTERY ${pad(i + 1)}` : id === 'mmwave' ? `mmWAVE ${pad(i + 1)}` : id === 'pir' ? `PIR ${pad(i + 1)}` : id === 'led' ? `LIGHT ${pad(i + 1)}` : id === 'motor' ? `FAN ${pad(i + 1)}` : `CHANNEL ${pad(i + 1)}`;
+      const label = id === 'battery' ? `SUPPLY ${pad(i + 1)}` : id === 'mmwave' ? `mmWAVE ${pad(i + 1)}` : id === 'pir' ? `PIR ${pad(i + 1)}` : id === 'led' ? `LIGHT ${pad(i + 1)}` : id === 'motor' ? `FAN ${pad(i + 1)}` : `CHANNEL ${pad(i + 1)}`;
       return `<g ${attributes}>${extras}${part(partName, x, y, width, height)}<text class="hw-unit-label" x="${x + width / 2}" y="${y + height + 16}">${label}</text></g>`;
     }).join(''), `0 0 ${viewWidth} ${viewHeight}`, `${components.find(item => item.id === id).name}, individually labeled engineering illustrations`);
   }
@@ -450,7 +451,7 @@
     flow += wireSvg('motor-power','M405 774H930V327','+5 V MOTOR RAIL',722,766);
     flow += wireSvg('ground','M405 795H1210V709H860M605 570V818H1210V795','COMMON GND',995,806);
     flow += wireSvg('assembly','M577 570V690','LOW-VOLTAGE ASSEMBLY',585,648);
-    devices += `<g data-component="battery" role="button" tabindex="0" aria-label="Inspect planned 9 V batteries">${part('battery',53,735,57,75)}${part('battery',124,735,57,75)}<text class="circuit-node-subcaption" x="58" y="826">9 V ×2 / PLANNING ONLY</text></g><path d="M172 763h73" stroke="#e6b75d" stroke-opacity=".3" stroke-dasharray="3 5"/><rect x="247" y="731" width="158" height="76" rx="4" fill="#302e22" stroke="#aaa16f" stroke-opacity=".3"/><text class="circuit-node-caption" x="326" y="753" text-anchor="middle">REGULATED SUPPLY</text><text class="circuit-node-subcaption" x="326" y="769" text-anchor="middle">REQUIRED / VERIFY RATINGS</text><text x="326" y="791" text-anchor="middle" fill="#a6aa86" font-size="8">LOGIC + 5 V MOTOR RAILS</text><g data-component="breadboard" role="button" tabindex="0" aria-label="Inspect prototype breadboard">${part('breadboard',490,692,215,119)}<text class="circuit-node-subcaption" x="506" y="836">BREADBOARD + JUMPER WIRES</text></g>${oledSvg(788,704,190)}<text class="circuit-node-caption" x="879" y="854" text-anchor="middle">LIVE I2C OLED</text>${buzzerDrawing(1035,694,125)}<text class="circuit-node-caption" x="1097" y="815" text-anchor="middle">BUZZER</text>`;
+    devices += `<g data-component="battery" role="button" tabindex="0" aria-label="Inspect planned power supplies">${part('battery',53,735,57,75)}${part('battery',124,735,57,75)}<text class="circuit-node-subcaption" x="58" y="826">POWER SUPPLY ×2 / PLANNING ONLY</text></g><path d="M172 763h73" stroke="#e6b75d" stroke-opacity=".3" stroke-dasharray="3 5"/><rect x="247" y="731" width="158" height="76" rx="4" fill="#302e22" stroke="#aaa16f" stroke-opacity=".3"/><text class="circuit-node-caption" x="326" y="753" text-anchor="middle">REGULATED SUPPLY</text><text class="circuit-node-subcaption" x="326" y="769" text-anchor="middle">REQUIRED / VERIFY RATINGS</text><text x="326" y="791" text-anchor="middle" fill="#a6aa86" font-size="8">LOGIC + 5 V MOTOR RAILS</text><g data-component="breadboard" role="button" tabindex="0" aria-label="Inspect prototype breadboard">${part('breadboard',490,692,215,119)}<text class="circuit-node-subcaption" x="506" y="836">BREADBOARD + JUMPER WIRES</text></g>${oledSvg(788,704,190)}<text class="circuit-node-caption" x="879" y="854" text-anchor="middle">LIVE I2C OLED</text>${buzzerDrawing(1035,694,125)}<text class="circuit-node-caption" x="1097" y="815" text-anchor="middle">BUZZER</text>`;
     $('#circuit-diagram').innerHTML = `<svg viewBox="0 0 1260 878" xmlns="http://www.w3.org/2000/svg" class="circuit-svg" role="group" aria-label="Complete interactive EcoSwitch logical circuit. Select a wire or GPIO for technical details.">${grid}${flow}${devices}</svg>`;
     const mobileRow = wire => `<button class="mobile-wire" data-wire="${wire.id}"><span>${wire.from}</span><i aria-hidden="true">↓</i><b>${wire.to}</b></button>`;
     $('#circuit-mobile').innerHTML = `<span class="mobile-circuit-label">INPUTS → CONTROLLER</span>${wires.filter(wire => ['presence','pir','manual'].includes(wire.kind)).map(mobileRow).join('')}<div class="arch-link"></div><div class="mobile-circuit-hub"><strong>ESP32-S3</strong><span>VALIDATE → OCCUPANCY → TIMER → CONTROL</span></div><div class="arch-link"></div><span class="mobile-circuit-label">CONTROLLER → OUTPUTS</span>${wires.filter(wire => ['light','motor','data','buzzer'].includes(wire.kind) && wire.id !== 'assembly').map(mobileRow).join('')}<details><summary class="mobile-circuit-label">POWER, PROTECTION & ASSEMBLY ↓</summary><div class="circuit-mobile">${wires.filter(wire => ['supply','ground','flyback'].includes(wire.kind) || wire.id === 'assembly').map(mobileRow).join('')}</div></details>`;
@@ -501,6 +502,7 @@
     const start = state.elapsed;
     state.elapsed += seconds;
     state.zones.forEach((zone, index) => {
+      if (zone.quickOff && !zone.occupied && !zone.manual) return; // driven by processQuickShutdowns
       if (zone.occupied || zone.manual) {
         zone.idleSeconds = 0;
         zone.shutdownSeconds = 0;
@@ -535,6 +537,7 @@
   function setPresence(index, presence) {
     selectZone(index);
     const zone = state.zones[index];
+    if (presence) zone.quickOff = null; // presence returning cancels a running 15 s shutdown
     zone.rawPresence = presence;
     zone.pending = { value: presence, until: performance.now() + VALIDATION_MS };
     zone.sensorPulseUntil = performance.now() + 1500;
@@ -565,6 +568,7 @@
     logEvent(`PIR ${pad(index + 1)} movement detected — activity, not continuous presence`, 'data', `PIR ${pad(index + 1)}`);
     relevant.forEach(zoneIndex => {
       state.zones[zoneIndex].idleSeconds = 0;
+      state.zones[zoneIndex].quickOff = null;
       logEvent(`${zoneName(zoneIndex)} activity timer reset`, 'data', zoneName(zoneIndex).toUpperCase());
       commitZone(zoneIndex, 'PIR activity grace period');
     });
@@ -583,11 +587,59 @@
     notify(`${zoneName(index)} · manual power hold ${zone.manual ? 'enabled' : 'released'}`);
   }
 
+  // "Remove presence": presence is cleared immediately (after the normal 350 ms input validation).
+  // The zone's lights and fans then switch OFF after QUICK_OFF_SECONDS of real time — not after
+  // the 15-simulated-minute timer — whatever the simulation speed. The idle ring still fills
+  // 0 → 15:00 over those seconds and the warning shows at the 10 s mark. Clicking again cancels.
+  function removePresence(index) {
+    selectZone(index);
+    const zone = state.zones[index];
+    if (zone.quickOff) {
+      zone.quickOff = null;
+      logEvent(`${zoneName(index)} 15-second shutdown cancelled`, 'data', 'DEMO CONTROL');
+      notify(`${zoneName(index)} · shutdown countdown cancelled`);
+      dirty = true;
+      return;
+    }
+    if (!zone.rawPresence && !zone.occupied) {
+      notify(`${zoneName(index)} is already empty.`);
+      return;
+    }
+    setPresence(index, false);
+    zone.quickOff = { remaining: QUICK_OFF_SECONDS };
+    logEvent(`${zoneName(index)} presence removed — lights and fans off in ${QUICK_OFF_SECONDS} s`, 'warning', 'DEMO CONTROL');
+    notify(`${zoneName(index)} · presence removed · lights and fans turn off in ${QUICK_OFF_SECONDS} seconds`);
+    dirty = true;
+  }
+
+  function processQuickShutdowns(delta) {
+    state.zones.forEach((zone, index) => {
+      const quick = zone.quickOff;
+      if (!quick) return;
+      if (zone.manual) { zone.quickOff = null; return; } // manual hold wins, as for the normal timer
+      if (zone.occupied) return;                         // still validating the removed presence
+      quick.remaining = Math.max(0, quick.remaining - delta);
+      const before = zone.idleSeconds;
+      zone.idleSeconds = (1 - quick.remaining / QUICK_OFF_SECONDS) * SHUTDOWN_AT;
+      if (before < WARNING_AT && zone.idleSeconds >= WARNING_AT) {
+        logEvent(`${zoneName(index)} inactivity warning — shutdown in ${Math.ceil(quick.remaining)} s`, 'warning', zoneName(index).toUpperCase());
+      }
+      if (quick.remaining === 0) {
+        zone.quickOff = null;
+        zone.idleSeconds = SHUTDOWN_AT;
+        logEvent(`${zoneName(index)} shutdown — ${QUICK_OFF_SECONDS} s after presence removed`, 'shutdown', zoneName(index).toUpperCase());
+      }
+      commitZone(index, `${QUICK_OFF_SECONDS} s after presence removed`);
+    });
+    syncBuzzerIfChanged();
+  }
+
   function forceZone(index, mode) {
     const zone = state.zones[index];
     zone.rawPresence = false;
     zone.occupied = false;
     zone.manual = false;
+    zone.quickOff = null;
     zone.pending = null;
     zone.idleSeconds = mode === 'WARNING' ? WARNING_AT : SHUTDOWN_AT;
     zone.shutdownSeconds = 0;
@@ -762,7 +814,7 @@
     text($('#inspector-sensor'), `mmWave ${pad(index + 1)}`);
     text($('#inspector-idle'), clock(zone.idleSeconds));
     text($('#inspector-power'), zone.powered ? 'ON / ON' : 'OFF / OFF');
-    text($('#inspector-countdown'), zone.state === 'ACTIVE' ? '—' : zone.state === 'SHUTDOWN' ? 'SHUT DOWN' : clock(SHUTDOWN_AT - zone.idleSeconds));
+    text($('#inspector-countdown'), zone.state === 'ACTIVE' ? '—' : zone.state === 'SHUTDOWN' ? 'SHUT DOWN' : zone.quickOff ? `${Math.ceil(zone.quickOff.remaining)} s` : clock(SHUTDOWN_AT - zone.idleSeconds));
     const colors = { ACTIVE: 'var(--active)', IDLE: 'var(--muted)', WARNING: 'var(--warning)', SHUTDOWN: 'var(--danger)' };
     $('#inspector-dot').style.background = colors[zone.state];
     $('#inspector-state').style.color = colors[zone.state];
@@ -855,6 +907,9 @@
     });
     $$('[data-buzzer-device]').forEach(element => attr(element,'data-buzzer-active',state.buzzerActive && !state.muted));
     setText('[data-buzzer-label]',state.buzzerActive ? (state.muted ? 'BUZZER MUTED / WARNING' : 'BUZZER ACTIVE') : 'BUZZER STANDBY');
+    const removalZone = state.zones[state.selectedZone];
+    setText('[data-remove-label]',removalZone.quickOff ? `Cancel · ${Math.max(1,Math.ceil(removalZone.quickOff.remaining))} s` : 'Remove presence');
+    $$('[data-action="remove-presence"]').forEach(button => attr(button,'aria-pressed',Boolean(removalZone.quickOff)));
     setText('[data-mute-label]',state.muted ? 'Unmute buzzer' : 'Mute buzzer');
     setText('[data-audio-label]',state.audioEnabled ? 'Disable sound' : 'Enable sound');
     $$('[data-action="mute"]').forEach(button => attr(button,'aria-pressed',state.muted));
@@ -1013,7 +1068,7 @@
         case 'select-zone': selectZone(index); break;
         case 'close-inspector': closeInspector(); break;
         case 'simulate-selected': setPresence(state.selectedZone,true); break;
-        case 'shutdown-selected': forceZone(state.selectedZone,'SHUTDOWN'); break;
+        case 'remove-presence': removePresence(state.selectedZone); break;
         case 'warning': forceZone(state.selectedZone,'WARNING'); break;
         case 'restore': restoreZone(state.selectedZone); break;
         case 'reset': resetSystem(); break;
@@ -1029,6 +1084,7 @@
           break;
         case 'forward':
           advanceSimulation(300);
+          state.zones.forEach(zone => { if (zone.quickOff) zone.quickOff.remaining = Math.max(0, zone.quickOff.remaining - 5); });
           logEvent('Fast-forward: +5 simulated minutes','data','SYSTEM');
           dirty = true;
           notify('Advanced all zone clocks by 5 simulated minutes.');
@@ -1152,6 +1208,7 @@
     lastSimulationTick = now;
     if (state.running) advanceSimulation(delta * 60 * state.speed);
     validateInputs(now);
+    if (state.running) processQuickShutdowns(delta);
     updateFanModel(delta);
   }
 

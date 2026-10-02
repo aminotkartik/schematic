@@ -8,7 +8,10 @@
   <title>EcoSwitch — Power the classroom. Not the emptiness.</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%23171511'/%3E%3Cpath d='M12 12h16M12 20h12M12 28h16' fill='none' stroke='%23eea16b' stroke-width='4'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
+  <script src="config.js" defer></script>
   <script src="script.js" defer></script>
+  <script src="contact.js" defer></script>
+  <script src="chatbot.js" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -24,6 +27,7 @@
       <a href="#intelligence">Intelligence</a>
       <a href="#components">Components</a>
       <a href="#circuit">Circuit</a>
+      <a href="#contact">Contact</a>
     </nav>
     <div class="header-actions">
       <span class="header-status"><i class="status-dot"></i> SYSTEM ONLINE</span>
@@ -56,7 +60,7 @@
             <div class="inspector-heading"><span class="micro-label" id="inspector-title">ZONE 02</span><button class="icon-button" data-action="close-inspector" aria-label="Close zone details">×</button></div>
             <div class="inspector-state"><i class="status-dot" id="inspector-dot"></i><strong id="inspector-state">IDLE</strong><span id="inspector-occupancy">EMPTY</span></div>
             <dl class="inspector-grid"><div><dt>Sensor</dt><dd id="inspector-sensor">mmWave 02</dd></div><div><dt>Idle</dt><dd id="inspector-idle">00:00</dd></div><div><dt>Light / fan</dt><dd id="inspector-power">ON / ON</dd></div><div><dt>Shutdown in</dt><dd id="inspector-countdown">15:00</dd></div></dl>
-            <div class="inspector-actions"><button class="button button-small button-primary" data-action="simulate-selected">Simulate presence</button><button class="button button-small button-outline danger-text" data-action="shutdown-selected">Force shutdown</button></div>
+            <div class="inspector-actions"><button class="button button-small button-primary" data-action="simulate-selected">Simulate presence</button><button class="button button-small button-outline" data-action="remove-presence" aria-pressed="false" aria-label="Remove presence from the selected zone; its lights and fans turn off after 15 seconds"><span data-remove-label>Remove presence</span></button></div>
           </aside>
         </div>
         <div class="scene-bottom"><span><span class="live-square"></span> BROWSER SIMULATION <span class="muted">/ NO HARDWARE CONNECTED</span></span><span class="scene-version">ES–01 <span>V.1.0</span></span></div>
@@ -110,14 +114,14 @@
 
     <section class="circuit-section section-shell" id="circuit" aria-labelledby="circuit-heading">
       <div class="section-heading reveal"><div><div class="eyebrow"><span class="section-number">05 /</span> FROM SIGNAL TO SWITCH</div><h2 id="circuit-heading">The complete circuit.</h2></div><div class="circuit-heading-controls"><p>Explore the connections.<br>Click a wire. Select a pin.</p><button class="button button-outline wiring-button" data-action="wiring" aria-pressed="false"><span class="wiring-symbol" aria-hidden="true"><svg viewBox="0 0 22 22"><path d="M3 16h4V6h8v10h4" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="3" cy="16" r="2" fill="currentColor"/><circle cx="19" cy="16" r="2" fill="currentColor"/></svg></span> Wiring mode <span class="toggle-track"><i></i></span></button></div></div>
-      <div class="circuit-panel glass-surface reveal"><div class="circuit-topline"><span class="micro-label">ECOSWITCH / PROTOTYPE CONNECTION PLAN</span><span class="micro-label muted">REV 01 · ILLUSTRATIVE</span></div><div class="wire-legend" aria-label="Wire types"><span><i class="legend-power"></i>POWER</span><span><i class="legend-data"></i>DATA</span><span><i class="legend-gpio"></i>GPIO</span><span><i class="legend-ground"></i>GROUND</span><span><i class="legend-sensor"></i>SENSOR SIGNAL</span></div><div id="circuit-diagram" class="circuit-desktop"></div><div id="circuit-mobile" class="circuit-mobile"></div><div class="circuit-footnote"><span><i class="status-dot"></i> <span id="wiring-mode-label">LIVE SIGNALS</span></span><p>3.3 V logic · Regulated 5 V motor rail · Common ground<br><span>9 V batteries are planning representations, never direct motor or controller supplies.</span></p></div></div>
+      <div class="circuit-panel glass-surface reveal"><div class="circuit-topline"><span class="micro-label">ECOSWITCH / PROTOTYPE CONNECTION PLAN</span><span class="micro-label muted">REV 01 · ILLUSTRATIVE</span></div><div class="wire-legend" aria-label="Wire types"><span><i class="legend-power"></i>POWER</span><span><i class="legend-data"></i>DATA</span><span><i class="legend-gpio"></i>GPIO</span><span><i class="legend-ground"></i>GROUND</span><span><i class="legend-sensor"></i>SENSOR SIGNAL</span></div><div id="circuit-diagram" class="circuit-desktop"></div><div id="circuit-mobile" class="circuit-mobile"></div><div class="circuit-footnote"><span><i class="status-dot"></i> <span id="wiring-mode-label">LIVE SIGNALS</span></span><p>3.3 V logic · Regulated 5 V motor rail · Common ground<br><span>Power supplies shown are planning representations. Always regulate before the motors or controller.</span></p></div></div>
       <p class="engineering-note circuit-safety">Classroom luminaires are represented by low-current LEDs. The 40 W / 50 W energy model does not describe GPIO loads. Real lighting needs appropriately rated, isolated switching hardware.</p>
     </section>
 
     <section class="simulator-section section-shell" id="simulator" aria-labelledby="simulator-heading">
       <div class="section-heading reveal"><div><div class="eyebrow"><span class="section-number">06 /</span> HANDS ON. LIVE.</div><h2 id="simulator-heading">Your classroom.<br>Your controls.</h2></div><p>Change an input. Watch the response.<br>This isn’t a video. It’s the system.</p></div>
       <div class="console-grid">
-        <section class="demo-controls glass-surface reveal" aria-labelledby="controls-heading"><div class="panel-topline"><h3 class="micro-label" id="controls-heading">DEMO CONTROL CENTER</h3><span class="data-chip">INTERACTIVE</span></div><div class="control-group"><div class="control-group-label"><span>mmWave presence</span><span class="micro-label">LATCHED SIMULATED INPUTS</span></div><div class="control-row" id="presence-controls"></div></div><div class="control-group"><div class="control-group-label"><span>Motion / activity</span><span class="micro-label">PIR 01 → Z1 + Z2 · PIR 02 → Z2 + Z3</span></div><div class="control-row pir-controls"><button class="control-button" data-action="pir" data-pir="0"><span class="control-icon" aria-hidden="true">◉</span><span>TRIGGER PIR 01</span><i class="control-pulse" data-pir-light="0"></i></button><button class="control-button" data-action="pir" data-pir="1"><span class="control-icon" aria-hidden="true">◉</span><span>TRIGGER PIR 02</span><i class="control-pulse" data-pir-light="1"></i></button></div></div><div class="control-group"><div class="control-group-label"><span>Manual power hold</span><span class="micro-label">OVERRIDES INACTIVITY ONLY</span></div><div class="control-row" id="override-controls"></div></div><div class="fault-controls"><label class="target-select">TARGET <select id="target-zone" aria-label="Target zone for force controls"><option value="0">ZONE 01</option><option value="1" selected>ZONE 02</option><option value="2">ZONE 03</option></select></label><div class="fault-buttons"><button class="button button-small button-outline amber-text" data-action="warning">Force warning</button><button class="button button-small button-outline danger-text" data-action="shutdown-selected">Force shutdown</button><button class="button button-small button-outline" data-action="restore">Restore power</button></div></div><div class="control-footer"><button class="text-button" data-action="reset"><span aria-hidden="true">↺</span> Reset system</button><span class="validation-note"><i></i> 350 ms input validation</span></div></section>
+        <section class="demo-controls glass-surface reveal" aria-labelledby="controls-heading"><div class="panel-topline"><h3 class="micro-label" id="controls-heading">DEMO CONTROL CENTER</h3><span class="data-chip">INTERACTIVE</span></div><div class="control-group"><div class="control-group-label"><span>mmWave presence</span><span class="micro-label">LATCHED SIMULATED INPUTS</span></div><div class="control-row" id="presence-controls"></div></div><div class="control-group"><div class="control-group-label"><span>Motion / activity</span><span class="micro-label">PIR 01 → Z1 + Z2 · PIR 02 → Z2 + Z3</span></div><div class="control-row pir-controls"><button class="control-button" data-action="pir" data-pir="0"><span class="control-icon" aria-hidden="true">◉</span><span>TRIGGER PIR 01</span><i class="control-pulse" data-pir-light="0"></i></button><button class="control-button" data-action="pir" data-pir="1"><span class="control-icon" aria-hidden="true">◉</span><span>TRIGGER PIR 02</span><i class="control-pulse" data-pir-light="1"></i></button></div></div><div class="control-group"><div class="control-group-label"><span>Manual power hold</span><span class="micro-label">OVERRIDES INACTIVITY ONLY</span></div><div class="control-row" id="override-controls"></div></div><div class="fault-controls"><label class="target-select">TARGET <select id="target-zone" aria-label="Target zone for force controls"><option value="0">ZONE 01</option><option value="1" selected>ZONE 02</option><option value="2">ZONE 03</option></select></label><div class="fault-buttons"><button class="button button-small button-outline amber-text" data-action="warning">Force warning</button><button class="button button-small button-outline" data-action="remove-presence" aria-pressed="false" aria-label="Remove presence from the selected zone; its lights and fans turn off after 15 seconds"><span data-remove-label>Remove presence</span></button><button class="button button-small button-outline" data-action="restore">Restore power</button></div></div><div class="control-footer"><button class="text-button" data-action="reset"><span aria-hidden="true">↺</span> Reset system</button><span class="validation-note"><i></i> 350 ms input validation</span></div></section>
 
         <section class="system-dashboard glass-surface reveal" aria-labelledby="dashboard-heading"><div class="panel-topline"><h3 class="micro-label" id="dashboard-heading">SYSTEM DASHBOARD</h3><span class="live-tag">LIVE</span></div><div class="system-status"><span class="micro-label">SYSTEM STATUS</span><strong><i class="status-dot"></i><span data-stat="system">ACTIVE</span></strong></div><dl class="dashboard-metrics"><div><dt>Occupied zones</dt><dd><span data-stat="occupied">2</span><small> / 3</small></dd></div><div><dt>Active lights</dt><dd><span data-stat="lights">3</span><small> / 3</small></dd></div><div><dt>Active fans</dt><dd><span data-stat="fans">3</span><small> / 3</small></dd></div><div><dt>Warning zones</dt><dd class="amber-text" data-stat="warnings">0</dd></div><div><dt>Shutdown zones</dt><dd data-stat="shutdown">0</dd></div><div><dt>Buzzer</dt><dd class="buzzer-stat" data-stat="buzzer">OFF</dd></div></dl><div class="system-health"><span><i></i>ESP32 <b>ONLINE</b></span><span><i></i>SENSORS <b>5 / 5</b></span><span><i></i>OLED <b>ONLINE</b></span><span><i></i>POWER CONTROL <b>READY</b></span></div><p class="health-note">Simulated device health. No hardware connected.</p></section>
 
@@ -130,12 +134,52 @@
     </section>
 
     <section class="documentation-section section-shell" id="documentation" aria-labelledby="documentation-heading"><div class="documentation-panel reveal"><div class="documentation-copy"><div class="eyebrow"><span class="section-number">07 /</span> ENGINEERING DOCUMENTATION</div><h2 id="documentation-heading">The thinking<br>behind the switch.</h2><p>Explore the complete architecture, sensing strategy, control logic, hardware design, and prototype implementation.</p><a class="button button-primary" href="pdf.pdf" target="_blank" rel="noopener noreferrer">Open technical PDF <span aria-hidden="true">↗</span></a><span class="document-path">ECOSWITCH / TECHNICAL DOCUMENTATION</span></div><div class="document-visual" aria-hidden="true"><div class="document-sheet"><div class="document-sheet-top"><svg viewBox="0 0 32 32"><path d="M9 6h16v5H13v3h10v5H13v3h12v5H9a4 4 0 0 1-4-4V10a4 4 0 0 1 4-4Z" fill="currentColor"/></svg><span>ECOSWITCH<br><small>ENGINEERING SYSTEMS</small></span></div><span class="document-rule"></span><div class="blueprint-drawing"><svg viewBox="0 0 280 205"><g fill="none" stroke="currentColor" stroke-width="1"><path d="m24 94 113-61 120 62-112 66Z M24 94v49l121 61 112-60V95 M137 33V9L24 69v25 M137 9l120 61v25 M76 119V80l60-33 69 36v42 M76 80l69 37 60-34 M145 117v44 M24 69l113 62 120-61 M137 131v73"/><path stroke-dasharray="3 4" d="m4 133 131 67M259 160l-111 60M17 57l110-60"/><circle cx="104" cy="92" r="5"/><circle cx="183" cy="100" r="5"/><path d="M104 87V65M183 95V72M39 99l45 23M204 131l35-19"/></g></svg></div><h3>INTELLIGENT<br>CLASSROOM ENERGY<br>MANAGEMENT</h3><div class="document-sheet-bottom"><span>SYSTEM ARCHITECTURE<br>PROTOTYPE IMPLEMENTATION</span><b>01</b></div></div><span class="document-orbit orbit-one"></span><span class="document-orbit orbit-two"></span></div></div></section>
+
+    <section class="contact-section section-shell" id="contact" aria-labelledby="contact-heading">
+      <div class="contact-panel reveal">
+        <div class="contact-copy">
+          <div class="eyebrow"><span class="section-number">08 /</span> GET IN TOUCH</div>
+          <h2 id="contact-heading">Questions? Ideas?<br><span class="muted-heading">Say hello.</span></h2>
+          <p>Curious about the prototype, the hardware, or bringing EcoSwitch to your classroom? Send a message and we will get back to you.</p>
+          <ul class="contact-points">
+            <li><i class="status-dot"></i> Replies by email or phone</li>
+            <li><i class="status-dot"></i> Your details are used only to respond</li>
+          </ul>
+        </div>
+        <form class="contact-form glass-surface" id="contact-form" novalidate>
+          <div class="field-row">
+            <div class="field">
+              <label for="contact-name">Name</label>
+              <input id="contact-name" name="name" type="text" autocomplete="name" required minlength="2" maxlength="80" placeholder="Your full name">
+            </div>
+            <div class="field">
+              <label for="contact-mobile">Mobile no.</label>
+              <input id="contact-mobile" name="mobile" type="tel" inputmode="tel" autocomplete="tel" required maxlength="20" placeholder="+91 98765 43210">
+            </div>
+          </div>
+          <div class="field">
+            <label for="contact-email">Email</label>
+            <input id="contact-email" name="email" type="email" autocomplete="email" required maxlength="120" placeholder="you@example.com">
+          </div>
+          <div class="field">
+            <label for="contact-message">Message</label>
+            <textarea id="contact-message" name="message" required minlength="10" maxlength="1000" placeholder="How can we help?"></textarea>
+            <span class="field-hint" id="message-count">0 / 1000</span>
+          </div>
+          <div class="hp-field" aria-hidden="true"><label for="contact-website">Leave this field empty</label><input id="contact-website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
+          <div class="contact-actions">
+            <button class="button button-primary" type="submit"><span data-submit-label>Send message</span> <span aria-hidden="true">↗</span></button>
+            <p class="contact-status" id="contact-status" role="status" aria-live="polite"></p>
+          </div>
+        </form>
+      </div>
+    </section>
   </main>
 
-  <footer class="site-footer section-shell"><div class="footer-main"><a class="brand" href="#"><svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M9 6h16v5H13v3h10v5H13v3h12v5H9a4 4 0 0 1-4-4V10a4 4 0 0 1 4-4Z" fill="currentColor"/></svg><span>ECOSWITCH</span></a><p>INTELLIGENT CLASSROOM ENERGY MANAGEMENT</p><a class="inline-link" href="#">Back to top <span aria-hidden="true">↑</span></a></div><div class="footer-bottom"><span>LESS WASTE. MORE INTELLIGENCE.</span><span>Prototype concept built with: <b>HTML</b> <b>CSS</b> <b>JavaScript</b></span><span>© 2026 ECOSWITCH</span></div></footer>
+  <footer class="site-footer section-shell"><div class="footer-main"><a class="brand" href="#"><svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M9 6h16v5H13v3h10v5H13v3h12v5H9a4 4 0 0 1-4-4V10a4 4 0 0 1 4-4Z" fill="currentColor"/></svg><span>ECOSWITCH</span></a><p>INTELLIGENT CLASSROOM ENERGY MANAGEMENT</p><a class="inline-link" href="#">Back to top <span aria-hidden="true">↑</span></a></div><div class="footer-bottom"><span>LESS WASTE. MORE INTELLIGENCE.</span></div></footer>
 
   <dialog id="technical-modal" class="technical-modal" aria-labelledby="modal-title"><div class="modal-topline"><span class="micro-label" id="modal-eyebrow">HARDWARE / TECHNICAL VIEW</span><button class="icon-button modal-close" id="modal-close" aria-label="Close technical view">×</button></div><div id="modal-content"></div></dialog>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <noscript><div class="noscript-notice">Enable JavaScript to experience the live EcoSwitch simulation. The site requires no installation or backend.</div></noscript>
+  <noscript><div class="noscript-notice">Enable JavaScript to experience the live EcoSwitch simulation. No installation is required.</div></noscript>
 </body>
 </html>
