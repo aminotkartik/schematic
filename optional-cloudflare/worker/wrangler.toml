@@ -1,0 +1,9 @@
+name = "ecoswitch-chat"
+main = "index.js"
+compatibility_date = "2025-01-01"
+
+[vars]
+# Exact origins (no path, no trailing slash) allowed to call the chatbot.
+ALLOWED_ORIGINS = "https://YOUR-USERNAME.github.io,http://localhost:8000,http://127.0.0.1:5500"
+# Check console.groq.com/docs/models for currently available models.
+GROQ_MODEL = "llama-3.3-70b-versatile"

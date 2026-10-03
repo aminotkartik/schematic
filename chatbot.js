@@ -3,7 +3,7 @@
   const cfg = window.ECOSWITCH_CONFIG || {};
   const MAX_INPUT = 500;
   const MAX_HISTORY = 8;
-  const REQUEST_TIMEOUT_MS = 30000;
+  const REQUEST_TIMEOUT_MS = 45000; // Apps Script can take a few seconds on a cold start
   const SUGGESTIONS = [
     'How does EcoSwitch decide to switch things off?',
     'Which sensors does it use?',
@@ -127,13 +127,14 @@
     try {
       const response = await fetch(cfg.CHAT_API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: history.slice(-MAX_HISTORY) }),
+        // text/plain keeps this a "simple" request: Apps Script web apps cannot answer CORS preflights.
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'chat', messages: history.slice(-MAX_HISTORY) }),
         signal: controller.signal
       });
       const data = await response.json().catch(() => ({}));
-      if (response.status === 429) throw new Error('rate');
-      if (!response.ok || !data.reply) throw new Error('failed');
+      if (data.error === 'rate') throw new Error('rate');
+      if (!data.ok || !data.reply) throw new Error('failed');
       typing.remove();
       addMessage('assistant', data.reply);
       history.push({ role: 'assistant', content: data.reply });
