@@ -134,11 +134,12 @@
       });
       const data = await response.json().catch(() => ({}));
       if (data.error === 'rate') throw new Error('rate');
-      if (!data.ok || !data.reply) throw new Error('failed');
+      if (!data.ok || !data.reply) throw new Error('failed: ' + (data.error || 'unreadable response from server') + (data.status ? ' (Groq HTTP ' + data.status + ')' : '') + (data.detail ? ' - ' + data.detail : ''));
       typing.remove();
       addMessage('assistant', data.reply);
       history.push({ role: 'assistant', content: data.reply });
     } catch (error) {
+      console.warn('[EcoSwitch chat]', error.name === 'AbortError' ? 'timed out' : error.message || error);
       typing.remove();
       history.pop(); // drop the unanswered question so history stays alternating
       addMessage('assistant', error.message === 'rate'

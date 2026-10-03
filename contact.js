@@ -75,20 +75,28 @@
     setStatus('');
 
     try {
-      // Apps Script web apps don't answer CORS preflights. A URL-encoded POST is a "simple"
-      // request, and no-cors lets it through. The response is opaque, so a resolved fetch
-      // means the request was delivered (it cannot confirm the sheet write).
-      await fetch(cfg.CONTACT_API_URL, {
+      // A URL-encoded POST is a "simple" request (Apps Script web apps cannot answer CORS
+      // preflights). We read the JSON reply so success is only shown when the sheet write worked.
+      const response = await fetch(cfg.CONTACT_API_URL, {
         method: 'POST',
-        mode: 'no-cors',
         body: new URLSearchParams({ ...data, website: '' })
       });
+      const result = await response.json().catch(() => ({}));
+      if (!result.ok) {
+        console.warn('[EcoSwitch contact] server said:', result.error || 'unreadable response');
+        const known = /wait before sending/i.test(result.error || '');
+        setStatus(known
+          ? 'Please wait a moment before sending another message.'
+          : 'Sorry, your message could not be saved. Please try again later.', 'error');
+        return;
+      }
       lastSent = Date.now();
       form.reset();
       counter.textContent = '0 / 1000';
       setStatus('Thank you! Your message has been sent. We will get back to you soon.', 'success');
-    } catch (_) {
-      setStatus('Could not send your message. Check your connection and try again.', 'error');
+    } catch (error) {
+      console.warn('[EcoSwitch contact] request failed:', error);
+      setStatus('Could not reach the server. Check your connection and try again.', 'error');
     } finally {
       submitButton.disabled = false;
       submitLabel.textContent = 'Send message';

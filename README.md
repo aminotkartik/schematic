@@ -14,9 +14,10 @@ optional-cloudflare/                 unused alternative backend (Cloudflare Work
 ## Backend setup (Google Apps Script — one deployment for chat + contact form)
 
 1. Create a Google Sheet → **Extensions → Apps Script**. Replace the code with `google-apps-script/Code.gs`.
-2. **Save the Groq key:** gear icon **Project Settings → Script properties → Add script property**
-   - Property: `GROQ_API_KEY`
-   - Value: your key from https://console.groq.com/keys (starts with `gsk_`)
+2. **Add the Groq key:** in the Apps Script editor, replace `PASTE_YOUR_GROQ_KEY_HERE` at the top of
+   `Code.gs` with your key from https://console.groq.com/keys (starts with `gsk_`).
+   **Do this only in the Apps Script editor. Never commit a copy of Code.gs that contains the real key.**
+   (Safer alternative: leave the placeholder and add a Script property named `GROQ_API_KEY`.)
 3. Pick `testChat` in the function dropdown → **Run** → accept the permission prompts
    (the "Connect to an external service" permission is what lets the script call Groq).
    The Execution log should print a reply with `"ok":true`.
@@ -28,7 +29,7 @@ optional-cloudflare/                 unused alternative backend (Cloudflare Work
 After **any** edit to Code.gs you must create a **new version** of the deployment, or the live URL keeps running the old code.
 
 ## Notes
-- The Groq key exists only in Script Properties. It is not in the repo, `config.js`, or the browser.
+- The Groq key exists only inside the Apps Script project. It must not be in the repo, `config.js`, or the browser.
 - Built-in limits: 20 chat requests/minute and 500/day across all visitors (edit at the top of Code.gs).
 - Google's free quota is 20,000 URL Fetch calls/day (Gmail accounts).
 - Contact submissions are saved in a tab named `Contact Submissions`.

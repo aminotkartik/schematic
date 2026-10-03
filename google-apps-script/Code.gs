@@ -4,12 +4,23 @@
  *   - form POST (application/x-www-form-urlencoded)  -> saved to the sheet   (contact.js)
  *   - JSON POST  (text/plain, {action:'chat', ...})  -> answered via Groq    (chatbot.js)
  *
- * SETUP: bind this script to the Google Sheet (Extensions -> Apps Script), then
- *   Project Settings (gear) -> Script properties -> Add:  GROQ_API_KEY = gsk_...
- * The key lives only in Script Properties. It is never in the repo or the browser.
+ * SETUP: bind this script to the Google Sheet (Extensions -> Apps Script), then paste your
+ * Groq key into GROQ_API_KEY below, INSIDE THE APPS SCRIPT EDITOR ONLY.
+ *
+ * WARNING: never upload/commit a copy of this file that contains your real key (GitHub,
+ * Drive shares, screenshots). The copy in your repo must keep the placeholder text.
+ * (Alternative that cannot leak through the file: Project Settings -> Script properties ->
+ * GROQ_API_KEY. If the constant below is left as the placeholder, that property is used.)
  */
 
+// Paste your key between the quotes, e.g. 'gsk_abc123...'. No spaces, no extra quotes.
+const GROQ_API_KEY = 'PASTE_YOUR_GROQ_KEY_HERE';
+const KEY_PLACEHOLDER = 'PASTE_YOUR_GROQ_KEY_HERE';
+
 // ---------------------------------------------------------------- settings
+const BACKEND_VERSION = 3;        // shown by the /exec check page so you can confirm the right code is live
+const SPREADSHEET_ID = '';        // leave '' when this script is opened from the Sheet (Extensions -> Apps Script).
+                                  // If the script is standalone, paste the Sheet ID (the long part of its URL) here.
 const SHEET_NAME = 'Contact Submissions';
 const NOTIFY_EMAIL = '';          // optional: e.g. 'you@example.com' to get an email per message
 const THROTTLE_SECONDS = 30;      // minimum gap between contact messages from the same email
@@ -48,8 +59,16 @@ function doPost(e) {
 
 // Visiting the /exec URL in a browser confirms the deployment is live.
 function doGet() {
-  const keySet = !!PropertiesService.getScriptProperties().getProperty('GROQ_API_KEY');
-  return respond_({ ok: true, service: 'EcoSwitch contact + chat endpoint', chatConfigured: keySet });
+  const keySet = !!getGroqKey_();
+  let sheetConnected = false;
+  try { sheetConnected = !!getSpreadsheet_(); } catch (_) {}
+  return respond_({
+    ok: true,
+    service: 'EcoSwitch contact + chat endpoint',
+    version: BACKEND_VERSION,
+    chatConfigured: keySet,
+    sheetConnected: sheetConnected
+  });
 }
 
 // ---------------------------------------------------------------- contact form
@@ -81,7 +100,7 @@ function handleContact_(e) {
 
     lock.waitLock(10000);
 
-    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    const spreadsheet = getSpreadsheet_();
     const sheet = spreadsheet.getSheetByName(SHEET_NAME) || spreadsheet.insertSheet(SHEET_NAME);
     if (sheet.getLastRow() === 0) {
       sheet.appendRow(HEADERS);
@@ -113,6 +132,28 @@ function handleContact_(e) {
   }
 }
 
+// Key from the constant above, or (if that is still the placeholder) from Script Properties.
+function getGroqKey_() {
+  const inCode = String(GROQ_API_KEY || '').trim();
+  if (inCode && inCode !== KEY_PLACEHOLDER) return inCode;
+  return String(PropertiesService.getScriptProperties().getProperty('GROQ_API_KEY') || '').trim();
+}
+
+function getSpreadsheet_() {
+  const ss = SPREADSHEET_ID ? SpreadsheetApp.openById(SPREADSHEET_ID) : SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) throw new Error('No spreadsheet found. Open Apps Script from the Sheet (Extensions -> Apps Script) or set SPREADSHEET_ID.');
+  return ss;
+}
+
+// Run from the editor to confirm the sheet connection and permissions: it adds one test row.
+function testContact() {
+  const out = handleContact_({ parameter: {
+    name: 'Test User', email: 'test' + Date.now() + '@example.com', mobile: '+91 98765 43210',
+    message: 'This is a test message from testContact().', website: ''
+  } });
+  console.log(out.getContent());
+}
+
 // ---------------------------------------------------------------- chatbot (Groq)
 function parseChatBody_(e) {
   const pd = e && e.postData;
@@ -129,7 +170,7 @@ function parseChatBody_(e) {
 
 function handleChat_(body) {
   try {
-    const apiKey = PropertiesService.getScriptProperties().getProperty('GROQ_API_KEY');
+    const apiKey = getGroqKey_();
     if (!apiKey) return respond_({ ok: false, error: 'not_configured' });
 
     const messages = cleanMessages_(body.messages);
@@ -154,8 +195,8 @@ function handleChat_(body) {
     const code = res.getResponseCode();
     if (code === 429) return respond_({ ok: false, error: 'rate' });
     if (code !== 200) {
-      console.error('Groq HTTP status ' + code); // status only: never log keys or message text
-      return respond_({ ok: false, error: 'upstream' });
+      console.error('Groq HTTP ' + code + ': ' + String(res.getContentText()).slice(0, 300)); // visible only in your Executions log
+      return respond_({ ok: false, error: 'upstream', status: code });
     }
     const data = JSON.parse(res.getContentText());
     const choice = data && data.choices && data.choices[0];
@@ -164,7 +205,8 @@ function handleChat_(body) {
     return respond_({ ok: true, reply: reply });
   } catch (err) {
     console.error(err);
-    return respond_({ ok: false, error: 'server' });
+    // The short reason shows in the browser console (F12) to help setup; delete `detail` once chat works.
+    return respond_({ ok: false, error: 'server', detail: String((err && err.message) || err).slice(0, 160) });
   }
 }
 
